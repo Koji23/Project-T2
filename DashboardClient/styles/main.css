@@ -30,8 +30,8 @@ p {
     padding-left: 0px !important;
 }
 
-.leftTab = {
-  'padding-right': '15px !important'
+.leftTab {
+  padding-right: '15px !important'
 }
 
 .row {
@@ -99,4 +99,30 @@ font-size: 25px;
     background-color: #1f253d !important;
     border: none !important;
     color: white !important;
+}
+
+/*.input {   
+    position: relative;
+    left: 60%;
+    top: 0%;
+}
+
+.inputSubmit {
+    margin: 10px;
+}*/
+
+.input {
+    position: relative;
+    float: right;
+    top: 12px;
+}
+
+.inputSubmit {
+    margin: 20px;
+}
+
+input {
+    border-radius: 10px;
+    height: 40px;
+    width: 160px;
 }

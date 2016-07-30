@@ -1,18 +1,20 @@
 import React from 'react';
-import Tab from './Tab';
+import ReactDOM from 'react-dom';
+import Loader from 'halogen/PulseLoader';
+import {Grid, Row, Col, Clearfix, Panel, Well, Button, Glyphicon} from 'react-bootstrap';
+import {Navbar, Nav, NavItem, NavDropdown, MenuItem, Image, Jumbotron} from 'react-bootstrap';
+import {Router, Route, Link, hashHistory, IndexRoute} from 'react-router';
+import updateDonutChart from './D3.js';
+import toggleComponent from './ToggleComponent'
 
 import LeftTab from './leftTab';
+import WorldMap from  './DashboardComponents/map/WorldMap';
 import MidTab from './MidTab';
 import RightTab from './RightTab';
 import TabPopularTweets from './TabPopularTweets';
 import TabNewsHeadlines from './TabNewsHeadlines';
-import ReactDOM from 'react-dom';
+import Search from './SearchComponent.js';
 
-import Loader from 'halogen/PulseLoader';
-
-import {Grid, Row, Col, Clearfix, Panel, Well, Button, Glyphicon} from 'react-bootstrap';
-import {Navbar, Nav, NavItem, NavDropdown, MenuItem, Image, Jumbotron} from 'react-bootstrap';
-import {Router, Route, Link, hashHistory, IndexRoute} from 'react-router';
 
 var styles = {
   'background-color': 'black'
@@ -22,18 +24,19 @@ class Dashboard extends React.Component {
   constructor(props){
     super(props);
     this.state = {
+      searchedItem: '',
       trends: [],
       currentTrend: 'Select Trend',
       twitterData:[
         {label: 'positive', score: 50},
         {label: 'negative', score: 50},
       ],
-      facebookData:[
-        {label: 'loves', score: 20},
-        {label: 'wows', score: 20},
-        {label: 'hahas', score: 20},
-        {label: 'sads', score: 20},
-        {label: 'angrys', score: 20},
+      emoData:[
+        {label: 'anger', score: 20},
+        {label:'joy', score: 20},
+        {label:'fear', score: 20},
+        {label:'sadness', score: 20},
+        {label:'surprise', score: 20}
       ],
       publicSentiment: '',
       emotionalFeedback: '',
@@ -42,39 +45,133 @@ class Dashboard extends React.Component {
       representativeTweet2: '',
       representativeNewsSource: '',
       twitterSpinner: false,
-      facebookSpinner: false, //not likely to be needed
       twitterSummary: '',
       facebookSummary: '',
-      facebookTopHeadlines: '',
+      NewsTopHeadlines: '',
+      trendScore: 0,
+      historicalTrendArray: [],
       facebookLikes: '',
       currentChart: 'twitterChart'
-
     }
   }
 
   componentDidMount () {
-    //start everything
     this.getTrends();
     this.updateChart(this.state.twitterData, '#sentimentChart');
-    // this.updateChart(this.state.twitterData, '#sentimentChart');
-    // this.updateDonutChart(this.state.facebookData);
-    // setInterval(this.getTrends.bind(this), 3000);
+  }
+/**************************
+ * Map Component Logic
+ **************************/
+
+  clickHandler() {
+    var that = this;
+
+    // setTimeout(function() {
+    //   this.state.map.svg.selectAll('.datamaps-subunit').on('click', function(geography) {
+    //     console.log('geography is', geography);
+    //     var obj = {target: {value: geography.id}};
+    //     that.handleFormChange(obj);
+    //     for (var i = 0; i < that.state.countriesArr.length; i++) {
+    //       if (that.state.countriesArr[i][2] === geography.id) {
+    //         that.googleTrendGrab(that.state.countriesArr[i][1]);
+    //         return;
+    //       }
+    //     }
+    //   });
+    // }.bind(this), 2000);
   }
 
-  getTrends () {
-    //pull in data from google trends to populate dropdown menu
+  handleFormChange (e) {
+    var clickedCountry = e.target.value;
+    //Toggle former selected country's map color to default
+    this.toggleMapColors(this.state.selectedCountry);
+
+    //Change the selected country in state
+    this.setState({selectedCountry: e.target.value});
+
+    //Toggle new selected country's map color to default
+    //Uses setTimeout because the setState requires time to update
+    setTimeout(function() {
+      this.toggleMapColors(clickedCountry)
+    }.bind(this), 250);
+  }
+
+
+  getObjectValues(obj) {
+    var values = [];
+    for (var i in obj) {
+      values.push(obj[i]);
+    }
+    return values;
+  }
+
+/**************************
+ * End Map Component Logic
+ **************************/
+
+  searchTrend (e) {
+    this.setState( {
+      currentTrend: e
+    })
+
+    this.twitterGrab(e);
+    this.updateNewsTopHeadlines(e);
+    this.getEmoChart();
+    this.topTweetGrab(e);
+
+  }
+
+getObjectValues(obj) {
+  var values = [];
+  for (var i in obj) {
+    values.push(obj[i]);
+  }
+  return values;
+}
+
+  setHistoryDataPoints(array) {
+    var dataPointsForGraph = [];
+    for (var i = 1; i < array.length; i++) {
+      dataPointsForGraph.push({'x': i, 'y': Number(this.getObjectValues(array[i])[0])})
+      console.log(dataPointsForGraph)
+    }
+    return dataPointsForGraph;
+  }
+
+  getHistory (q) {
     var context = this;
-    $.get('http://localhost:3000/trends', function(data){
-
-      context.setState({
-        trends: data
-      })
-
+    $.ajax({
+      method: "POST",
+      url: 'http://localhost:4000/history',
+      data: JSON.stringify({q: q}),
+      contentType: "application/json",
+      success: function(d){
+        var history = d;
+        var dataPoints = context.setHistoryDataPoints(history);
+        console.log(history, 'THIS IS ALL THE HISTORY DATA')
+        context.setState({
+          historyArray: history,
+          trendScore: context.getObjectValues(history[history.length-1])[0],
+          historicalTrendArray: dataPoints
+        })
+      },
+      dataType: 'json'
     });
   }
 
+
+getTrends () {
+    //pull in data from google trends to populate dropdown menu
+    var context = this;
+    $.get('http://localhost:4000/trends', function(data){
+      context.setState({
+        trends: data
+      })
+    });
+  }
+
+  //pull in twitter data from watson to populate twitter chart
   twitterGrab (q) {
-    //pull in twitter data from watson to populate twitter chart
     var context = this;
     this.setState({
       currentTrend: q,
@@ -83,10 +180,13 @@ class Dashboard extends React.Component {
   
     $.ajax({
       method: "POST",
-      url: 'http://localhost:3000/grabTweets',
+      url: 'http://localhost:4000/grabTweets',
       data: JSON.stringify({q: q}),
       contentType: "application/json",
       success: function(d){
+        setTimeout(function() {
+          console.log(d);
+        }, 2000);
         context.setState({
           twitterData: [{label: 'positive', score:d.positive},{label:'negative', score:d.negative}],
           twitterSpinner: false,
@@ -99,49 +199,6 @@ class Dashboard extends React.Component {
     });
   }
 
-  facebookGrab (q) {
-    //grab facebook data for fb chart
-    this.setState({
-      currentTrend: q
-    })
-    var context = this;
-    $.ajax({
-      method: "POST",
-      url: 'http://localhost:3000/grabFbook',
-      data: JSON.stringify({q: q}),
-      contentType: "application/json",
-      success: function(d){
-        var fbdata = map(d, function(value, prop){
-          if (value < 1) {
-            return { 
-              label: prop,
-              score: value
-            };
-          } else {
-            return {
-              label: prop,
-              score: value
-            }
-          }
-        })
-        context.setState({
-          facebookData: fbdata,
-          facebookSummary: d.summary,
-          facebookTopHeadlines: [d.topHeadline, d.secondHeadline],
-          facebookLikes: d.likes
-        });
-        console.log(d.topHeadline);
-        console.log('response fb mapped: ', fbdata, d);
-        console.log('###$$$$$$$$$$$$$', context.state);
-        d3.select('#sentimentChart').selectAll('svg').remove();
-        // context.updateChart(context.state.facebookData, '#sentimentChart');
-        context.updateDonutChart(context.state.facebookData);
-
-      },
-      dataType: 'json'
-    });
-  }
-
   topTweetGrab (q) {
     //grab top tweet data to populate representative tweet panel
     var context = this;
@@ -149,10 +206,9 @@ class Dashboard extends React.Component {
       currentTrend: q
     })
 
-
     $.ajax({
       method: "POST",
-      url: 'http://localhost:3000/grabTopTweet',
+      url: 'http://localhost:4000/grabTopTweet',
       data: JSON.stringify({q: q}),
       contentType: "application/json",
       success: function(d){
@@ -172,18 +228,25 @@ class Dashboard extends React.Component {
     });
   }
 
+  //Updates all data. API calls for NewsFeed, Twitter are set here 
   allDataGrab (q) {
     //update everything (when new trend is selected)
     this.setState({
       currentTrend: q
     })
+
     if(this.state.currentChart === "twitterChart"){
       this.twitterGrab(q);
     } else {
-      this.facebookGrab(q);
+      //this.facebookGrab(q);
     }
+    this.getHistory(q);
+
+    this.updateNewsTopHeadlines(q);
     this.topTweetGrab(q);
+    this.getEmoChart()
   }
+
 
   updateChart (data, id) {
     var width = 350, //960
@@ -193,8 +256,6 @@ class Dashboard extends React.Component {
     //Ordinal scale w/ default domain and colors for range
     var color = d3.scale.ordinal()
         .range(["#F0AD44","#128085","#FAE8CD","#385052","#C74029"]);
-
-
 
     //create arc data (to define path svg)
     var arc = d3.svg.arc()
@@ -239,203 +300,173 @@ class Dashboard extends React.Component {
     .attr('font-size', '15px')
     .text(function(d) {return d.data.label;});
   }
-  updateDonutChart (dataset){
-    var width = 350,
-        height = 350,
-        outerRadius = Math.min(width, height) * .5 - 10,
-        innerRadius = outerRadius * .6;
 
-    // emoDataset 
 
-    // var dummyDataSet = [null, 20, 20, 20, 20, 20];
-    // console.log('this is the dataset: ', dataset)
-    var newDataset = dataset.slice(4);
-    // console.log('this is the new and improved dataset: ', newDataset);
-    var dataFromServer = map(newDataset, function(item){
-      // console.log(item)
-      return item.score == null ? 0 : item.score;
-    });
-    var emoDataset = [null].concat(dataFromServer);
-    // console.log('emoDataset', emoDataset);  
-
-    var fTest = function () {
-      emoDataset.splice(0, 1);
-      return emoDataset[0]; 
-    }
-
-    var n = 5,
-        data0 = d3.range(n).map(Math.random),
-        data1 = d3.range(n).map(fTest),
-        data;
-
-    var color = d3.scale.category20();
-
-    var arc = d3.svg.arc();
-
-    var pie = d3.layout.pie()
-        .sort(null);
-
-    var svg = d3.select("#sentimentChart").append("svg")
-        .attr('class', 'facebookChart')
-        .attr("width", width)
-        .attr("height", height);
-
-    svg.selectAll(".arc")
-        .data(arcs(data0, data1))
-      .enter().append("g")
-        .attr("class", "arc")
-        .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")")
-      .append("path")
-        .attr("fill", function(d, i) { return color(i); })
-        .attr("d", arc);
-
-    transition(1);
-
-    // copied code //
-
-    function arcs(data0, data1) {
-      var arcs0 = pie(data0),
-          arcs1 = pie(data1),
-          i = -1,
-          arc;
-      while (++i < n) {
-        arc = arcs0[i];
-        arc.innerRadius = innerRadius;
-        arc.outerRadius = outerRadius;
-        arc.next = arcs1[i];
+  worldMap() {
+    this.state.map = new Datamap({
+      element: document.getElementById('worldMapContainer'),
+      responsive: true,
+      geographyConfig: {
+        popupOnHover: true
+      },
+      fills: {
+          SELECTED: 'red',
+          UNSELECTED: 'green',
+          defaultFill: 'gray'
       }
-      return arcs0;
-    }
-
-    // end copied code //
-
-    function transition(state) {
-      var path = d3.select('#sentimentChart').selectAll(".arc > path")
-          .data(state ? arcs(data0, data1) : arcs(data1, data0));
-
-      var t0 = path.transition()
-          .duration(500)
-          .attrTween("d", tweenArc(function(d, i) {
-            return {
-              innerRadius: i & 1 ? innerRadius : (innerRadius + outerRadius) / 2,
-              outerRadius: i & 1 ? (innerRadius + outerRadius) / 2 : outerRadius
-            };
-          }));
-
-      var t1 = t0.transition()
-          .attrTween("d", tweenArc(function(d, i) {
-            var a0 = d.next.startAngle + d.next.endAngle,
-                a1 = d.startAngle - d.endAngle;
-            return {
-              startAngle: (a0 + a1) / 2,
-              endAngle: (a0 - a1) / 2
-            };
-          }));
-
-      var t2 = t1.transition()
-            .attrTween("d", tweenArc(function(d, i) {
-              return {
-                startAngle: d.next.startAngle,
-                endAngle: d.next.endAngle
-              };
-            }));
-
-      var t3 = t2.transition()
-          .attrTween("d", tweenArc(function(d, i) {
-            return {
-              innerRadius: innerRadius,
-              outerRadius: outerRadius
-            };
-          }));
-    }
-
-    function tweenArc(b) {
-      return function(a, i) {
-        var d = b.call(this, a, i), i = d3.interpolate(a, d);
-        for (var k in d) a[k] = d[k]; // update data
-        return function(t) { return arc(i(t)); };
-      };
-    }
+    })
+    var selectedCountry = this.state.selectedCountry;
+    var map = this.state.map;
+    this.state.countriesArr.map(function(triple) {
+      var obj = {}
+      var toggle = (triple[1] === selectedCountry) ? 'SELECTED' : 'UNSELECTED';
+      obj[triple[2]] = {'fillKey': toggle};
+      map.updateChoropleth(obj);
+    });
+    d3.select(window).on('resize', function() {
+      map.resize();
+    });
   }
 
-  toggleChart () {
+  toggleDisplay(){
     var currentChart = d3.select('#sentimentChart').selectAll('svg');
     var currentChartClass = currentChart[0][0].className.animVal;
     d3.select('#sentimentChart').selectAll('svg').remove();
-    if(currentChartClass === "twitterChart") {
-      this.updateDonutChart(this.state.facebookData);
-      this.setState({currentChart: 'facebookChart'});
-    } else {
+    var update;
+    if(this.state.currentChart === 'emoChart') {
       this.updateChart(this.state.twitterData, '#sentimentChart');
-      this.setState({currentChart: 'twitterChart'});
+      update = 'twitterChart'
+    } else {
+      updateDonutChart(this.state.emoData);
+      update = 'emoChart'
     }
+    this.setState({
+      currentChart: update
+    })
+    //toggle to properchart in return 
   }
+
+  getEmoChart(){
+    var context = this
+    $.ajax({
+      method: "GET",
+      url: 'http://localhost:4000/emo',
+      contentType: "application/json",
+      dataType: 'json',
+      success: function(d){
+        context.setState({
+        emoData : [
+          {label: 'anger', score:d.anger},
+          {label:'joy', score: d.joy},
+          {label:'fear', score: d.fear},
+          {label:'sadness', score: d.sadness},
+          {label:'surprise', score: d.surprise}
+          ],
+          twitterSpinner : false,
+        });
+      // updateDonutChart(this.state.getEmoChart)
+      },
+    });
+  }
+
+  updateNewsTopHeadlines(keyword) {
+    var context = this;
+    var url = "https://api.nytimes.com/svc/search/v2/articlesearch.json";
+    url += '?' + $.param({
+      'api-key': "38618d65ade0456985ffee0915ba6299",
+      'q': keyword
+    });
+    $.ajax({
+      url: url,
+      method: 'GET',
+    }).done(function (result) {
+      var finalbody = [];
+      //Go Through news articles and extract snippit
+      result.response.docs.map(function (article, index) {
+
+        //Snippet That is clickable 
+        //Number of articles to display 
+        if (index < 2) {
+          finalbody.push(
+            <a href={article.web_url}>
+              <div>
+                {article.snippet}
+              </div></a>)
+        }
+      })
+      context.setState({ NewsTopHeadlines: finalbody });
+    }).fail(function (err) {
+      throw err;
+    });
+  }
+ 
 
   render () {
     var header = {
-      'background-color': '#394264',
-      'font-color': 'white',
-      'border-color': 'rgba(231, 231, 231, 0)',
-      'margin-top': '2.5%',
-
-      'height': '65px',
-      'font-size': '17px',
-      'border-radius': '5px'
-    }
+      backgroundColor: '#394264',
+      fontColor: 'white',
+      borderColor: 'rgba(231, 231, 231, 0)',
+      marginTop: '2.5%',
+      height: '65px',
+      fontSize: '17px',
+      borderRadius: '5px'
+    };
 
     var headerli = {
-
-      'padding': '0 10px',
-      'display': 'block',
-      'line-height': '74px',
-      'font-size': '17px',
-      '-webkit-transition': 'background .3s',
-      'transition': 'background .3s',
-
-      'margin-top': '10px'
-    }
+      padding: '0 10px',
+      display: 'block',
+      lineHeight: '74px',
+      fontSize: '17px',
+      webkitTransition: 'background .3s',
+      transition: 'background .3s',
+      marginTop: '10px'
+    };
 
     var liColor = {
-      'text-color': 'white'
-    }
+      textColor: 'white'
+    };
 
     var outline = {
-      'background-color': 'rgb(57, 66, 100)',
-      'height': '485px' ,
-      'border-radius': '5px'
-    }
+      backgroundColor: 'rgb(57, 66, 100)',
+      height: '485px' ,
+      borderRadius: '5px'
+    };
 
     var titular = {
-    'display': 'block',
-    'line-height': '50px',
-    'text-align': 'center',
-    'border-top-left-radius': '5px',
-    'border-top-right-radius': '5px',
-    'font-size': '17px',
-    'color': 'rgb(255, 255, 255)',
-    'font-weight': 'bold',
-    'background': '#35aadc'
-    }
+      display: 'block',
+      lineHeight: '50px',
+      textAlign: 'center',
+      borderTopLeftRadius: '5px',
+      borderTopRightRadius: '5px',
+      fontSize: '17px',
+      color: 'rgb(255, 255, 255)',
+      fontWeight: 'bold',
+      background: '#35aadc'
+    };
 
     var glyphOffset = {
-      'marginRight':'15px',
-      'font-size':'25px',
-      'margin-bottom': '10px'
-    }
+      marginRight:'15px',
+      fontSize:'25px',
+      marginBottom: '10px'
+    };
 
     var sentimentChart = {
-      'position': 'relative',
-      'left': '70%',
-      'top': '2%',
-      '-webkit-transform': 'translateX(-50%)',
-      '-ms-transform': 'translateX(-50%)',
-      'transform': 'translateX(-50%)',
-      'padding-right': '27.5px'
+      position: 'relative',
+      left: '70%',
+      top: '2%',
+      WebkitTransform: 'translateX(-50%)',
+      mstransform: 'translateX(-50%)',
+      transform: 'translateX(-50%)',
+      paddingRight: '27.5px'
+    };
+
+    var sentiment1Chart;
+    if(this.state.currentChart === 'twitterChart') {
+      sentiment1Chart =  <Loader color="#26A65B " size="16px" margin="4px"/>               
+    } else {
+      sentiment1Chart = toggleComponent 
     }
-
-
     return (
-      
       <Grid>
           <Row>
             <Navbar style={header}>
@@ -460,64 +491,36 @@ class Dashboard extends React.Component {
                     }.bind(this))
                   }
                 </NavDropdown>
-                <Button onClick={this.toggleChart.bind(this)}>Toggle Display</Button>
+                <Button onClick={this.toggleDisplay.bind(this)}>Toggle Display</Button>
               </Nav>
+              <Search search={this.searchTrend.bind(this)} />
             </Navbar>
           </Row>
           <Row>
-
-            <Col xs={6} md={4}><LeftTab info={this.state.trendHistory} header={this.state.currentTrend} sub={"Trend Score: " + Math.ceil(Math.random()  * 100)}/></Col>
+            <Col xs={6} md={4}><LeftTab info={this.state.trendHistory} header={this.state.currentTrend.toUpperCase()} sub={"Trend Score: " + this.state.trendScore}/></Col>
             <Col xs={6} md={4}><MidTab loading={this.state.twitterSpinner} info={this.state.publicSentiment} header="PUBLIC SENTIMENT" sub={this.state.twitterSummary}/></Col>
-            <Col xs={6} md={4}><RightTab info={this.state.emotionalFeedback} header={"EMOTIONAL FEEDBACK"} sub={this.state.facebookSummary}/></Col>
+            <Col xs={6} md={4}><RightTab id='visualisation' header={"TREND GRAPH (1 YEAR)"} sub={'graph'} plotPoints={this.state.historicalTrendArray}/></Col>
           </Row>
           <Row>
             <Col md={6} mdPush={6}>
               <Row>  
-
                 <TabPopularTweets info={this.state.trendHistory} header="MOST POPULAR TWEETS" sub1={this.state.representativeTweet1user} sub2={this.state.representativeTweet1headline} sub3={this.state.representativeTweet1time} sub4={this.state.representativeTweet2user} sub5={this.state.representativeTweet2headline} sub6={this.state.representativeTweet2time}/>
               </Row>
               <Row>
-                <TabNewsHeadlines info={this.state.trendHistory} header="MOST POPULAR HEADLINES" sub1={this.state.facebookTopHeadlines[0]} sub2={this.state.facebookTopHeadlines[1]}/>
+                <TabNewsHeadlines info={this.state.trendHistory} header="MOST POPULAR HEADLINES" sub1={this.state.NewsTopHeadlines[0]}  sub2={this.state.NewsTopHeadlines[1]} />
               </Row>
             </Col>
             <Col md={6} mdPull={6}>
               <div style={outline}>
                 <h1 style={titular}>SENTIMENT ANALYSIS</h1>
                 <div id="sentimentChart" style={sentimentChart}>
-                  {this.state.twitterSpinner ? <Loader color="#26A65B " size="16px" margin="4px"/> : <div></div>}
+                  {sentiment1Chart}
                 </div>
-                {this.state.currentChart == 'facebookChart' ?  
-
-                                                  <div>
-                                                    <ul className="legend horizontal-list">
-                                                        <li>
-                                                            <p className="love split scnd-font-color">Love</p>
-                                                            <p className="percentage">N/A<sup>%</sup></p>
-                                                        </li>
-                                                        <li>
-                                                            <p className="shocked split scnd-font-color">Shocked</p>
-                                                            <p className="percentage">N/A<sup>%</sup></p>
-                                                        </li>
-                                                        <li>
-                                                            <p className="funny split scnd-font-color">Funny</p>
-                                                            <p className="percentage">N/A<sup>%</sup></p>
-                                                        </li>
-                                                        <li>
-                                                            <p className="sad split scnd-font-color">Sad</p>
-                                                            <p className="percentage">N/A<sup>%</sup></p>
-                                                        </li>
-                                                        <li>
-                                                            <p className="angry split scnd-font-color">Angry</p>
-                                                            <p className="percentage">N/A<sup>%</sup></p>
-                                                        </li>
-                                                    </ul>
-                                                  </div> 
-                                                  : ''} 
               </div>
             </Col>
           </Row>
           <Row>
-
+            <WorldMap trends={function(list) { this.setState({trends: list.split('\n') })}.bind(this)} />
           </Row>
       </Grid>
     );
@@ -525,7 +528,6 @@ class Dashboard extends React.Component {
 }
 
 export default Dashboard;
-
 
 var map = function(obj, cb){
   var result = [];
