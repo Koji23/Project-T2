@@ -100,3 +100,16 @@ font-size: 25px;
     border: none !important;
     color: white !important;
 }
+
+.on {
+    color: #23FF49;
+}
+
+.off {
+  color: #FF5F59;
+}
+
+div.chartbutton {
+  margin-left: 15px;
+  
+}
