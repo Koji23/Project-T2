@@ -23,6 +23,7 @@ class Dashboard extends React.Component {
     super(props);
     this.state = {
       trends: [],
+      button: true,
       currentTrend: 'Select Trend',
       twitterData:[
         {label: 'positive', score: 50},
@@ -50,6 +51,7 @@ class Dashboard extends React.Component {
       currentChart: 'twitterChart'
 
     }
+    this.throttledToggleChart = this.throttle(this.toggleChart.bind(this), 7000);
   }
 
   componentDidMount () {
@@ -370,6 +372,25 @@ class Dashboard extends React.Component {
       this.setState({currentChart: 'twitterChart'});
     }
   }
+  throttle (func, time) {
+    var goodToGo = true;
+    var context = this;
+    return function() {
+      if(goodToGo === true) {
+        func(arguments);
+        goodToGo = false;
+        context.setState({
+          button: false
+        })
+        setTimeout(function() {
+          goodToGo = true;
+          context.setState({
+            button: true
+          })
+        }, time);
+      } 
+    }
+  }
 
   render () {
     var header = {
@@ -460,7 +481,6 @@ class Dashboard extends React.Component {
                     }.bind(this))
                   }
                 </NavDropdown>
-                <Button onClick={this.toggleChart.bind(this)}>Toggle Display</Button>
               </Nav>
             </Navbar>
           </Row>
@@ -483,36 +503,42 @@ class Dashboard extends React.Component {
             <Col md={6} mdPull={6}>
               <div style={outline}>
                 <h1 style={titular}>SENTIMENT ANALYSIS</h1>
+                <div className="chartbutton">
+                  <Button onClick={this.throttledToggleChart.bind(this)}>
+                    <span className={this.state.button ? "on" : "off"}>Toggle Chart</span>
+                  </Button>
+                </div>
                 <div id="sentimentChart" style={sentimentChart}>
                   {this.state.twitterSpinner ? <Loader color="#26A65B " size="16px" margin="4px"/> : <div></div>}
                 </div>
                 {this.state.currentChart == 'facebookChart' ?  
 
-                                                  <div>
-                                                    <ul className="legend horizontal-list">
-                                                        <li>
-                                                            <p className="love split scnd-font-color">Love</p>
-                                                            <p className="percentage">65<sup>%</sup></p>
-                                                        </li>
-                                                        <li>
-                                                            <p className="shocked split scnd-font-color">Shocked</p>
-                                                            <p className="percentage">12<sup>%</sup></p>
-                                                        </li>
-                                                        <li>
-                                                            <p className="funny split scnd-font-color">Funny</p>
-                                                            <p className="percentage">6<sup>%</sup></p>
-                                                        </li>
-                                                        <li>
-                                                            <p className="sad split scnd-font-color">Sad</p>
-                                                            <p className="percentage">8<sup>%</sup></p>
-                                                        </li>
-                                                        <li>
-                                                            <p className="angry split scnd-font-color">Angry</p>
-                                                            <p className="percentage">9<sup>%</sup></p>
-                                                        </li>
-                                                    </ul>
-                                                  </div> 
-                                                  : ''} 
+                  <div>
+                    <ul className="legend horizontal-list">
+                        <li>
+                            <p className="love split scnd-font-color">Love</p>
+                            <p className="percentage">65<sup>%</sup></p>
+                        </li>
+                        <li>
+                            <p className="shocked split scnd-font-color">Shocked</p>
+                            <p className="percentage">12<sup>%</sup></p>
+                        </li>
+                        <li>
+                            <p className="funny split scnd-font-color">Funny</p>
+                            <p className="percentage">6<sup>%</sup></p>
+                        </li>
+                        <li>
+                            <p className="sad split scnd-font-color">Sad</p>
+                            <p className="percentage">8<sup>%</sup></p>
+                        </li>
+                        <li>
+                            <p className="angry split scnd-font-color">Angry</p>
+                            <p className="percentage">9<sup>%</sup></p>
+                        </li>
+                    </ul>
+                  </div> 
+                  : ''} 
+
               </div>
             </Col>
           </Row>
